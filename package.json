@@ -1,0 +1,19 @@
+{
+  "name": "young-loader",
+  "version": "1.0.0",
+  "description": "young.js 's loader",
+  "main": "./src/loader.js",
+  "dependencies": {
+    "@babel/core": "^7.15.5",
+    "@babel/generator": "^7.15.4",
+    "@babel/parser": "^7.15.7",
+    "@babel/traverse": "^7.15.4",
+    "@babel/types": "^7.15.6",
+    "@babel/plugin-transform-modules-umd": "^7.14.5"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
