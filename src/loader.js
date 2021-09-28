@@ -4,6 +4,7 @@ const generate = require('@babel/generator').default
 const t = require('@babel/types')
 const core = require('@babel/core')
 const { filterJSXTextOrChildren, addToWithBlockPath } = require('./util')
+// const fs = require('fs')
 
 module.exports = function (source) {
 
@@ -56,20 +57,14 @@ module.exports = function (source) {
     Program(path) {
       programPath = path
       path.node.body.unshift(
-        t.variableDeclaration(
-          'const',
-          [t.variableDeclarator(
-            t.objectPattern(requireIdentifiers.map(i => {
-              return t.objectProperty(
-                t.identifier(i),
-                t.identifier(i)
-              )
-            })),
-            t.callExpression(
-              t.identifier('require'),
-              [t.stringLiteral(youngPath)]
+        t.importDeclaration(
+          requireIdentifiers.map(i => {
+            return t.importSpecifier(
+              t.identifier(i),
+              t.identifier(i)
             )
-          )]
+          }),
+          t.stringLiteral(youngPath)
         ),
         t.expressionStatement(
           t.callExpression(
@@ -325,15 +320,15 @@ module.exports = function (source) {
     },
   })
 
+  var p
   traverse(tree, {
     BlockStatement(path) {
       if (path.node === tempBlockStatementPathNode) {
+        p = path.node
         newFunctionParam.push(
           t.stringLiteral('data'),
           t.stringLiteral('c'),
-          // t.templateLiteral([
-          //   t.templateElement({raw: generate(path.node).code.replace(/^{/, '').replace(/}$/, '')})
-          // ], [])
+
           t.stringLiteral(generate(path.node).code.replace(/^{/, '').replace(/}$/, '')),
         )
         path.remove()
@@ -342,20 +337,12 @@ module.exports = function (source) {
     CallExpression(path) {
       if (path.node.callee.name === 'Young') {
         programPath.node.body.unshift(
-          t.variableDeclaration(
-            'const',
-            [t.variableDeclarator(
-              t.objectPattern([
-                t.objectProperty(
-                  t.identifier('genTree'),
-                  t.identifier('genTree')
-                )
-              ]),
-              t.callExpression(
-                t.identifier('require'),
-                [t.stringLiteral(youngPath)]
-              )
-            )]
+          t.importDeclaration(
+            [t.importSpecifier(
+              t.identifier('genTree'),
+              t.identifier('genTree')
+            )],
+            t.stringLiteral(youngPath)
           )
         )
         mountElement = path.node.arguments[0]
@@ -395,5 +382,6 @@ module.exports = function (source) {
 
   // fs.writeFileSync(`src/${componentName}.js`, res)
 
-  return res
+  return res  
 }
+

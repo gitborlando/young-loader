@@ -4,7 +4,7 @@ module.exports = {
     mode: 'production',
     entry: './src/loader.js',
     output: {
-        library: 'Frame',
+        library: 'youngLoader',
         libraryTarget: 'umd',
         libraryExport: 'default',
         path: path.join(__dirname, '/dist/'),
