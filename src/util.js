@@ -17,6 +17,11 @@ function filterJSXTextOrChildren(children) {
         ['map', 'filter'].includes(menberPathNode.property.name)
       ) {
         childs.push(t.spreadElement(item.expression))
+      } else if (
+        t.isLogicalExpression(item.expression) ||
+        t.isConditionalExpression(item.expression)
+      ) {
+        childs.push(item.expression)
       } else {
         text.push(item.expression)
       }
