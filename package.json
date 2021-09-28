@@ -11,6 +11,9 @@
     "@babel/types": "^7.15.6",
     "@babel/plugin-transform-modules-umd": "^7.14.5"
   },
+  "scripts": {
+    "test": ""
+  },
   "author": "",
   "license": "ISC",
   "devDependencies": {
