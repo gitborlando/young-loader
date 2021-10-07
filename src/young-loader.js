@@ -101,6 +101,11 @@ module.exports = function (source) {
         }
       }
     },
+    CallExpression(path) {
+      if (path.node.callee.name === 'Effect') {
+        otherIdentifiers.push('Effect')
+      }
+    }
   })
 
   traverse(tree, {
@@ -139,6 +144,12 @@ module.exports = function (source) {
             addToWithBlockPath(withBlockStatementPathNode, path2)
             path2.remove()
           },
+          CallExpression(path2) {
+            if (path2.node.callee.name === 'Effect') {
+              withBlockStatementPathNode.body.unshift(path2.node)
+              path2.remove()
+            }
+          }
         })
       }
       if (path.node === rootFunctionBlockPathNode) {
@@ -226,7 +237,7 @@ module.exports = function (source) {
     },
     CallExpression(path) {
       if (path.node.callee.name === 'Young') {
-        programPath.node.body.unshift(
+        programPath.node.body.push(
           t.importDeclaration(
             [t.importSpecifier(
               t.identifier(mount.as),
