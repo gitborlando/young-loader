@@ -1,8 +1,8 @@
 {
   "name": "young-loader",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "young.js 's loader",
-  "main": "./src/loader.js",
+  "main": "./src/young-loader.js",
   "dependencies": {
     "@babel/core": "^7.15.5",
     "@babel/generator": "^7.15.4",
