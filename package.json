@@ -1,6 +1,6 @@
 {
   "name": "young-loader",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "young.js 's loader",
   "main": "./src/young-loader.js",
   "dependencies": {

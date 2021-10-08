@@ -28,17 +28,12 @@ module.exports = function (source) {
 
   var programPath
   var dataPathNodes = []
-  var newFunctionParam
   var rootFunctionBlockPathNode
-  var withBlockStatementPathNode
-  var tempBlockStatementPathNode
   var mountElement
-  var propKeys = []
-  var components = []
-  var otherIdentifiers = []
+  var jsxs = []
+  var effectCalls = []
+  var reactiveIdentifiers = []
   var labelPropertyPathNodes = []
-  var functionDeclaration = []
-  var golobalIdentifiers = Object.values(gn)
   var requireIdentifiers = [
     { raw: 'createElement', as: gn.CREATEELEMENT },
     { raw: 'reactive', as: gn.REACTIVE },
@@ -58,7 +53,6 @@ module.exports = function (source) {
                 path.node
               )
             )
-            propKeys.push(path.node.name)
           }
         })
         path.remove()
@@ -67,6 +61,7 @@ module.exports = function (source) {
         path.traverse({
           AssignmentExpression(path) {
             if (path.node.operator !== '=') return
+            reactiveIdentifiers.push(path.node.left.name)
             dataPathNodes.push(
               t.objectProperty(
                 path.node.left,
@@ -79,31 +74,22 @@ module.exports = function (source) {
       }
       path.skip()
     },
-    JSXElement(path) {
-      const { openingElement } = path.node
-      const { name: { name: tag } } = openingElement
-      isComponent(tag) && components.push(tag)
+    JSXFragment(path) {
+      if (path.parentPath.node.type === 'ExpressionStatement') {
+        jsxs.push(t.returnStatement(path.node))
+        path.remove()
+      }
     },
-    VariableDeclaration(path) {
-      if (golobalIdentifiers.includes(path.node.declarations[0].id.name)) return
-
-      if (path.parentPath.isProgram()) {
-        const { id, init } = path.node.declarations[0]
-        if (t.isArrowFunctionExpression(init)) {
-          withBlockStatementPathNode.body.unshift(path.node)
-          path.remove()
-        }
-        else if (t.isCallExpression(init) && init.callee.name === 'require') {
-          path.skip()
-        }
-        else {
-          otherIdentifiers.push(id.name)
-        }
+    JSXElement(path) {
+      if (path.parentPath.node.type === 'ExpressionStatement') {
+        jsxs.push(t.returnStatement(path.node))
+        path.remove()
       }
     },
     CallExpression(path) {
       if (path.node.callee.name === 'Effect') {
-        otherIdentifiers.push('Effect')
+        effectCalls.push(path.node)
+        path.remove()
       }
     }
   })
@@ -111,7 +97,7 @@ module.exports = function (source) {
   traverse(tree, {
     Program(path) {
       programPath = path
-      path.node.body.unshift(
+      path.node.body.push(
         t.importDeclaration(
           requireIdentifiers.map(i => {
             return t.importSpecifier(
@@ -120,6 +106,12 @@ module.exports = function (source) {
             )
           }),
           t.stringLiteral(youngPath)
+        ),
+        t.variableDeclaration(
+          'var',
+          [t.variableDeclarator(
+            t.identifier(gn.DATA)
+          )]
         ),
         t.exportDefaultDeclaration(
           t.functionDeclaration(
@@ -134,67 +126,30 @@ module.exports = function (source) {
       )
     },
     BlockStatement(path) {
-      if (path.node === withBlockStatementPathNode) {
-        programPath.traverse({
-          JSXFragment(path2) {
-            addToWithBlockPath(withBlockStatementPathNode, path2)
-            path2.remove()
-          },
-          JSXElement(path2) {
-            addToWithBlockPath(withBlockStatementPathNode, path2)
-            path2.remove()
-          },
-          CallExpression(path2) {
-            if (path2.node.callee.name === 'Effect') {
-              withBlockStatementPathNode.body.unshift(path2.node)
-              path2.remove()
-            }
-          }
-        })
-      }
       if (path.node === rootFunctionBlockPathNode) {
         path.node.body.unshift(
-          t.variableDeclaration(
-            'var',
-            [t.variableDeclarator(
-              t.identifier(gn.RENDER),
-              t.newExpression(
-                t.identifier('Function'),
-                newFunctionParam = []
-              )
-            )]
-          ),
-          t.variableDeclaration(
-            'var',
-            [t.variableDeclarator(
-              t.identifier(gn.DATA),
-              t.callExpression(
-                t.identifier(gn.REACTIVE),
-                [t.objectExpression(dataPathNodes)]
-              ),
-            )]
-          ),
-          t.returnStatement(
+          t.assignmentExpression(
+            '=',
+            t.identifier(gn.DATA),
             t.callExpression(
-              t.identifier(gn.RENDER),
-              [
-                t.identifier(gn.DATA),
-                t.identifier(gn.CREATEELEMENT),
-                ...components.map(i => t.identifier(i)),
-                ...propKeys.map(i => t.identifier(i)),
-                ...otherIdentifiers.map(i => t.identifier(i)),
-              ]
+              t.identifier(gn.REACTIVE),
+              [t.objectExpression(dataPathNodes)]
             )
           ),
-          tempBlockStatementPathNode = t.blockStatement([
-            ...functionDeclaration,
-            t.withStatement(
-              t.identifier(gn.DATA),
-              withBlockStatementPathNode = t.blockStatement([])
-            )
-          ]),
+          ...effectCalls,
+          ...jsxs
         )
       }
+    }
+  })
+
+  traverse(tree, {
+    Identifier(path) {
+      if (!reactiveIdentifiers.includes(path.node.name)) return
+      if (path.parentPath?.parentPath.node.properties === dataPathNodes) return
+
+      path.replaceWith(t.identifier(`${gn.DATA}.${path.node.name}`))
+      path.skip()
     },
     JSXElement(path) {
       const { openingElement } = path.node
@@ -216,24 +171,6 @@ module.exports = function (source) {
           t.arrayExpression(filteredChildren)
         ])
       path.replaceWith(expression)
-    },
-  })
-
-
-  traverse(tree, {
-    BlockStatement(path) {
-      if (path.node === tempBlockStatementPathNode) {
-        var code = generate(path.node).code.replace(/^{/, '').replace(/}$/, '')
-        newFunctionParam.push(
-          t.stringLiteral(gn.DATA),
-          t.stringLiteral(gn.CREATEELEMENT),
-          ...components.map(i => t.stringLiteral(i)),
-          ...propKeys.map(i => t.stringLiteral(i)),
-          ...otherIdentifiers.map(i => t.stringLiteral(i)),
-          t.templateLiteral([t.templateElement({ raw: code })], [])
-        )
-        path.remove()
-      }
     },
     CallExpression(path) {
       if (path.node.callee.name === 'Young') {
@@ -295,26 +232,12 @@ module.exports = function (source) {
           t.isConditionalExpression(item.expression)
         ) {
           return t.callExpression(
-            t.arrowFunctionExpression(
-              [],
-              item.expression
-            ),
-            []
+            t.arrowFunctionExpression([], item.expression), []
           )
         }
         return item.expression
       }
     }).filter(i => i !== 'Invalid Text')
-  }
-
-  function addToWithBlockPath(withBlockStatementPathNode, path) {
-    if (path.parentPath.node.type === 'ExpressionStatement') {
-      withBlockStatementPathNode.body.unshift(
-        t.returnStatement(
-          path.node
-        )
-      )
-    }
   }
 
   function isComponent(tag) { return tag[0] === tag[0].toUpperCase() }
